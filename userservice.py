@@ -7,6 +7,10 @@ import bcrypt
 import smtplib
 import re
 
+from fastapi.security import HTTPBearer
+from fastapi import Depends
+
+security = HTTPBearer()
 
 class UserService:
     def __init__(self):
@@ -120,7 +124,8 @@ class UserService:
         except Exception as e:
             return {'success': False, 'message': f'Error al envial el correo {str(e)}'}
 
-    def token_user_decoded(self, token):
+    def token_user_decoded(self, credentials=Depends(security)):
+        token = credentials.credentials
         try:
             decoded = jwt.decode(token, config('SECRET_KEY'), algorithms=['HS256'])
             return decoded

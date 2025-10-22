@@ -117,12 +117,12 @@ class DatabaseHandle:
             if 'conn' in locals() and conn:
                 conn.close()
 
-    def verify_and_validate_token(self, token):
+    def verify_and_validate_token(self, token_decoded):
         try:
             # Decodificar el token
-            decoded = self.userservice.token_user_decoded(token)
-            username = decoded.get('username')
-            email = decoded.get('email')
+            # decoded = self.userservice.token_user_decoded(token)
+            username = token_decoded.get('username')
+            email = token_decoded.get('email')
 
             if not email:
                 raise ValueError('El token no contiene un email válido.')
@@ -130,9 +130,9 @@ class DatabaseHandle:
                 raise ValueError('El token no contiene un nombre de usuario válido.')
 
             # Validar si el token expiró
-            if 'exp' in decoded:
+            if 'exp' in token_decoded:
                 # Convertir el timestamp a fecha
-                exp = datetime.datetime.utcfromtimestamp(decoded['exp'])
+                exp = datetime.datetime.utcfromtimestamp(token_decoded['exp'])
                 if exp < datetime.datetime.utcnow():
                     raise ValueError('El token ha expirado.')
 

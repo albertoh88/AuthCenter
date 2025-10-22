@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from pydantic import BaseModel
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, EmailStr
 from database import DatabaseHandle
 from userservice import UserService
 import jwt
@@ -8,8 +9,9 @@ import jwt
 router = APIRouter()
 db_handler = DatabaseHandle()
 userservices = UserService()
+security = HTTPBearer()
 
-class RegisterRequest(BaseModel):
+class RegisterRequestSchema(BaseModel):
     email: str
     username: str
     password: str
@@ -17,7 +19,7 @@ class RegisterRequest(BaseModel):
 
 # Ruta para registrar un usuario
 @router.post('/register')
-def register_user(request: RegisterRequest):
+def register_user(request: RegisterRequestSchema):
     # Llamada a la función register_user de DatabaseHandle
     result = db_handler.register_user(request.email, request.username, request.password, request.role)
 
@@ -28,13 +30,13 @@ def register_user(request: RegisterRequest):
     # Devolviendo una respuesta exitosa
     return {'message':result['message']}
 
-class LoginRequest(BaseModel):
+class LoginRequestSchema(BaseModel):
     username: str
     password: str
 
 # Ruta para logear un usuario
 @router.post('/login')
-def login_user(request: LoginRequest):
+def login_user(request: LoginRequestSchema):
     # Aquí deberías implementar la lógica para verificar el login
     # Por ejemplo, llamando a un método en `DatabaseHandle` que valide las credenciales
 
@@ -46,16 +48,19 @@ def login_user(request: LoginRequest):
 
     # Si el login es exitoso, devolver el token generado
     return {'message': result['message'], 'token': result['token']}
-@router.get('/protected-route')
-def token_protected_route(authorization: str = Header(...)):
-    if not isinstance(authorization, str) or not authorization.startswith('Bearer '):
-        raise HTTPException(status_code=401, detail='El token no fue proporcionado correctamente.')
 
-    token = authorization.split(' ')[1] # Extraer el token después de 'Bearer'
+@router.get('/protected-route', dependencies=[Depends(security)])
+def token_protected_route(payload=Depends(userservices.token_user_decoded)):#authorization: str = Header(..., alias='Authorization')):
+    # print(authorization)
+    # if not isinstance(authorization, str) or not authorization.startswith('Bearer '):
+    #     raise HTTPException(status_code=401, detail='El token no fue proporcionado correctamente.')
+    #
+    # token = authorization.split(' ')[1] # Extraer el token después de 'Bearer'
+    print(payload)
 
     # Llamar a la función de validación del token
     try:
-        validation_result = db_handler.verify_and_validate_token(token)
+        validation_result = db_handler.verify_and_validate_token(payload)
 
         # Si la validación falla, manejar el error
         if not validation_result['success']:
@@ -66,19 +71,19 @@ def token_protected_route(authorization: str = Header(...)):
             'success': True,
             'message': 'Acceso permitido. Token válido',
             'username': validation_result['username'],
-            'token': token
+            'token': payload
         }
 
     except Exception as e:
         # Manejar cualquier error inesperado
         raise HTTPException(status_code=500, detail=f'Error interno: {str(e)}')
 
-class ResetPassword(BaseModel):
+class ResetPasswordSchema(BaseModel):
     email: str
 
 # Ruta para recuperar la contraseña
 @router.post('/reset-password')
-def reset_password(request: ResetPassword, http_request: Request):
+def reset_password(request: ResetPasswordSchema, http_request: Request):
     try:
         autorization = http_request.headers.get('Authorization')
         if not autorization:
@@ -104,10 +109,11 @@ def reset_password(request: ResetPassword, http_request: Request):
             message = 'Error desconocido al procesar la solicitud'
         raise HTTPException(status_code=500, detail=result['message'])
 
-class ResetPasswordConfirm(BaseModel):
+class ResetPasswordConfirmSchema(BaseModel):
     new_password: str
+
 @router.post('/reset-password-confirm')
-def reset_password_confirm(request: ResetPasswordConfirm, http_request: Request):
+def reset_password_confirm(request: ResetPasswordConfirmSchema, http_request: Request):
     try:
         autorization = http_request.headers.get('Authorization')
         if not autorization:
